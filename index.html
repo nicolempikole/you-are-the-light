@@ -15,9 +15,10 @@
     align-items: center;
     font-family: sans-serif;
     font-size: 2rem;
-    color: black;
-    background-color: white;
+    color: white;
+    background-color: black;
     transition: background-color 0.05s;
+    text-align: center;
   }
 
   #startButton {
@@ -26,17 +27,13 @@
     cursor: pointer;
   }
 
-  #message {
-    text-align: center;
-  }
-
   audio {
     display: none;
   }
 </style>
 </head>
 <body>
-<div id="message">You are connected</div>
+<div id="message">You are now connected.<br>The experience will start soon.</div>
 <button id="startButton" style="display:none;">Start</button>
 
 <audio id="song" src="audio/Get Together.mp3"></audio>
@@ -49,31 +46,34 @@ const startButton = document.getElementById('startButton');
 const audio = document.getElementById('song');
 
 if (isControl) {
+  // CONTROL PAGE
   message.style.display = 'none';
   startButton.style.display = 'block';
 
   startButton.addEventListener('click', async () => {
-  startButton.style.display = 'none';
+    startButton.style.display = 'none';
 
-  // 1️⃣ Create AudioContext first
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  await audioCtx.resume();  // ensures it works on mobile
+    // Create AudioContext first
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    await audioCtx.resume(); // ensures mobile support
 
-  // 2️⃣ Connect the audio element to the context
-  const source = audioCtx.createMediaElementSource(audio);
-  const analyser = audioCtx.createAnalyser();
-  source.connect(analyser);
-  analyser.connect(audioCtx.destination);
+    // Connect the audio element
+    const source = audioCtx.createMediaElementSource(audio);
+    const analyser = audioCtx.createAnalyser();
+    source.connect(analyser);
+    analyser.connect(audioCtx.destination);
 
-  // 3️⃣ Play the audio AFTER connecting to context
-  audio.play();
+    // Play the music
+    audio.play();
 
-  // 4️⃣ Start strobe animation
-  animateStrobe(analyser);
-});
+    // Start strobe animation
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    let isWhite = false;
+    const threshold = 150; // adjust sensitivity
 
-
-      // calculate average amplitude
+    function animateStrobe() {
+      analyser.getByteTimeDomainData(dataArray);
       let sum = 0;
       for (let i = 0; i < bufferLength; i++) {
         sum += Math.abs(dataArray[i] - 128);
@@ -84,13 +84,15 @@ if (isControl) {
         document.body.style.backgroundColor = isWhite ? 'black' : 'white';
         isWhite = !isWhite;
       }
-
-      requestAnimationFrame(animate);
+      requestAnimationFrame(animateStrobe);
     }
 
-    audio.play();
-    animate();
+    animateStrobe();
   });
+} else {
+  // AUDIENCE PAGE
+  document.body.style.backgroundColor = 'black';
+  message.style.display = 'block';
 }
 </script>
 </body>
