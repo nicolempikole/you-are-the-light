@@ -3,13 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>You Are The Light - Demo</title>
+<title>You Are The Light</title>
 <style>
   html, body {
     margin: 0;
     height: 100%;
     width: 100%;
-    overflow: hidden;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -21,75 +20,104 @@
     transition: background-color 0.05s;
   }
 
-  #message { transition: opacity 2s; }
-  #startButton { padding: 1rem 2rem; font-size: 2rem; cursor: pointer; display: none; }
-  audio { display: none; }
+  #message {
+    transition: opacity 2s;
+  }
+
+  #startButton {
+    padding: 1rem 2rem;
+    font-size: 2rem;
+    cursor: pointer;
+    display: none;
+  }
+
+  audio {
+    display: none;
+  }
 </style>
 </head>
 <body>
-<div id="message">You are now connected.<br>Waiting for Start…</div>
+
+<div id="message">You are now connected.<br>Put your phone up when you feel TOGETHER</div>
 <button id="startButton">Start</button>
 
 <audio id="song" src="audio/Get Together.mp3"></audio>
 
+<!-- Pusher JS -->
+<script src="https://js.pusher.com/8.2/pusher.min.js"></script>
+
 <script>
-const urlParams = new URLSearchParams(window.location.search);
-const isControl = urlParams.get('control') === 'true';
-const message = document.getElementById('message');
-const startButton = document.getElementById('startButton');
-const audio = document.getElementById('song');
+document.addEventListener('DOMContentLoaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const isControl = urlParams.get('control') === 'true';
 
-// BroadcastChannel for communication between tabs
-const channel = new BroadcastChannel('strobe_channel');
+  const message = document.getElementById('message');
+  const startButton = document.getElementById('startButton');
+  const audio = document.getElementById('song');
 
-if(isControl){
-  message.style.display = 'none';
-  startButton.style.display = 'block';
+  // Pusher credentials
+  const PUSHER_KEY = "30c6a2b5192e79fdcbdc";
+  const PUSHER_CLUSTER = "eu";
 
-  startButton.addEventListener('click', () => {
-    startButton.style.display = 'none';
-    audio.play();
+  const pusher = new Pusher(PUSHER_KEY, { cluster: PUSHER_CLUSTER });
+  const channel = pusher.subscribe('strobe_channel');
 
-    // Notify audience tabs
-    channel.postMessage({ action: 'START' });
-  });
+  if(isControl){
+    // CONTROL MODE
+    message.style.display = 'none';
+    startButton.style.display = 'block';
 
-} else {
-  // AUDIENCE PAGE
-  message.style.display = 'block';
-  document.body.style.backgroundColor = 'black';
-  let firstBeat = true;
+    startButton.addEventListener('click', async () => {
+      startButton.style.display = 'none';
+      await audio.play(); // music plays on control only
 
-  channel.onmessage = (event) => {
-    if(event.data.action === 'START'){
+      // Send request to Node.js server (replace with your public URL when deployed)
+      fetch("http://localhost:3000/start", { method: "POST" })
+        .then(res => res.json())
+        .then(console.log)
+        .catch(console.error);
+    });
+
+  } else {
+    // AUDIENCE MODE
+    let firstBeat = true;
+
+    channel.bind('START', () => {
       if(firstBeat){
-        message.style.opacity = '0';
+        message.style.opacity = '0'; // fade text
         firstBeat = false;
       }
       startRandomStrobe();
-    }
-  };
-}
-
-// Random strobe
-function startRandomStrobe(){
-  let isWhite = false;
-  function animate(){
-    const intensity = Math.random();
-    const delay = 50 + Math.random()*250;
-
-    if(intensity > 0.7){
-      document.body.style.transition = 'background-color 0.05s';
-      document.body.style.backgroundColor = isWhite ? 'black' : 'white';
-    } else {
-      document.body.style.transition = 'background-color 0.2s';
-      document.body.style.backgroundColor = isWhite ? '#222' : '#eee';
-    }
-    isWhite = !isWhite;
-    setTimeout(animate, delay);
+    });
   }
-  animate();
-}
+
+  // Random strobe function
+  function startRandomStrobe(){
+    let isWhite = false;
+
+    function animate(){
+      const intensity = Math.random();
+      const delay = 50 + Math.random()*250; // random interval
+
+      if(intensity > 0.7){
+        // hard flash
+        document.body.style.transition = 'background-color 0.05s';
+        document.body.style.backgroundColor = isWhite ? 'black' : 'white';
+      } else {
+        // soft fade
+        document.body.style.transition = 'background-color 0.2s';
+        document.body.style.backgroundColor = isWhite ? '#222' : '#eee';
+      }
+
+      isWhite = !isWhite;
+      setTimeout(animate, delay);
+    }
+
+    animate();
+  }
+
+});
 </script>
+
 </body>
 </html>
