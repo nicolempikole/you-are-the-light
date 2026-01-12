@@ -21,6 +21,10 @@
     transition: background-color 0.05s;
   }
 
+  #message {
+    transition: opacity 2s;
+  }
+
   #startButton {
     padding: 1rem 2rem;
     font-size: 2rem;
@@ -34,12 +38,117 @@
 </style>
 </head>
 <body>
-<div id="message">You are now connected.<br>The experience will start soon.</div>
+<div id="message">You are now connected.<br>The experience will start soon. Raise your phone when you feel... TOGETHER</div>
 <button id="startButton">Start</button>
 
 <audio id="song" src="audio/Get Together.mp3"></audio>
 
 <script>
-const urlParams = new URLSearchParams(window.location.search);
-const isControl = urlParams.get('control') === 'true';
-co
+document.addEventListener('DOMContentLoaded', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const isControl = urlParams.get('control') === 'true';
+  const message = document.getElementById('message');
+  const startButton = document.getElementById('startButton');
+  const audio = document.getElementById('song');
+
+  // BroadcastChannel for communication between control and audience
+  const channel = new BroadcastChannel('strobe_channel');
+
+  // Function to start strobe on a page
+  function startStrobe(beatSource=null, isAudience=false){
+    let bufferLength, dataArray;
+    if(beatSource){
+      bufferLength = beatSource.frequencyBinCount;
+      dataArray = new Uint8Array(bufferLength);
+    }
+
+    let isWhite = false;
+    const threshold = 150;
+
+    function animate(){
+      if(beatSource){
+        // Control page: use audio amplitude to detect beats
+        beatSource.getByteTimeDomainData(dataArray);
+        let sum = 0;
+        for(let i=0;i<bufferLength;i++){
+          sum += Math.abs(dataArray[i]-128);
+        }
+        const avg = sum/bufferLength;
+
+        if(avg > threshold){
+          if(avg > threshold*1.5){
+            // strong beat = hard switch
+            document.body.style.backgroundColor = isWhite ? 'black' : 'white';
+            isWhite = !isWhite;
+          } else {
+            // soft beat = smooth fade
+            document.body.style.transition = 'background-color 0.1s';
+            document.body.style.backgroundColor = isWhite ? '#222' : '#eee';
+            isWhite = !isWhite;
+          }
+
+          // Send beat info to audience
+          channel.postMessage({action:'BEAT', intensity: avg});
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+  }
+
+  if(isControl){
+    // CONTROL PAGE
+    message.style.display = 'none';
+    startButton.style.display = 'block';
+
+    // Setup AudioContext and Analyser
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaElementSource(audio);
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 1024;
+    source.connect(analyser);
+    analyser.connect(audioCtx.destination);
+
+    startButton.addEventListener('click', async () => {
+      startButton.style.display = 'none';
+      await audioCtx.resume();
+      audio.play();
+      startStrobe(analyser);
+    });
+
+  } else {
+    // AUDIENCE PAGE
+    document.body.style.backgroundColor = 'black';
+    message.style.display = 'block';
+
+    let firstBeat = true;
+    let isWhite = false;
+
+    // Listen for beat signals from control page
+    channel.addEventListener('message', (event) => {
+      if(event.data.action === 'BEAT'){
+        const intensity = event.data.intensity;
+
+        // Fade out text on first beat
+        if(firstBeat){
+          message.style.opacity = '0';
+          firstBeat = false;
+        }
+
+        // Hard vs soft transition based on intensity
+        if(intensity > 225){
+          document.body.style.transition = 'background-color 0.05s';
+          document.body.style.backgroundColor = isWhite ? 'black' : 'white';
+        } else {
+          document.body.style.transition = 'background-color 0.2s';
+          document.body.style.backgroundColor = isWhite ? '#222' : '#eee';
+        }
+        isWhite = !isWhite;
+      }
+    });
+  }
+});
+</script>
+</body>
+</html>
