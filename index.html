@@ -1,139 +1,36 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <meta http-equiv="Content-Style-Type" content="text/css">
-  <title></title>
-  <meta name="Generator" content="Cocoa HTML Writer">
-  <meta name="CocoaVersion" content="2575.7">
-  <style type="text/css">
-    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
-    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
-  </style>
-</head>
-<body>
-<p class="p1">&lt;!DOCTYPE html&gt;</p>
-<p class="p1">&lt;html lang="en"&gt;</p>
-<p class="p1">&lt;head&gt;</p>
-<p class="p1">&lt;meta charset="UTF-8"&gt;</p>
-<p class="p1">&lt;title&gt;You Are The Light&lt;/title&gt;</p>
-<p class="p1">&lt;meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;style&gt;</p>
-<p class="p1">html, body {</p>
-<p class="p1"><span class="Apple-converted-space">  </span>margin: 0;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>padding: 0;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>width: 100%;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>height: 100%;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>background: #000;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>color: #fff;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>font-family: Arial, Helvetica, sans-serif;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>overflow: hidden;</p>
-<p class="p1">}</p>
-<p class="p2"><br></p>
-<p class="p1">.screen {</p>
-<p class="p1"><span class="Apple-converted-space">  </span>display: none;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>position: absolute;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>inset: 0;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>justify-content: center;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>align-items: center;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>text-align: center;</p>
-<p class="p1">}</p>
-<p class="p2"><br></p>
-<p class="p1">.active { display: flex; }</p>
-<p class="p2"><br></p>
-<p class="p1">#waiting {</p>
-<p class="p1"><span class="Apple-converted-space">  </span>flex-direction: column;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>opacity: 0.85;</p>
-<p class="p1">}</p>
-<p class="p2"><br></p>
-<p class="p1">#pulseText {</p>
-<p class="p1"><span class="Apple-converted-space">  </span>position: absolute;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>font-size: 10vw;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>opacity: 0.06;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>pointer-events: none;</p>
-<p class="p1">}</p>
-<p class="p2"><br></p>
-<p class="p1">#stop {</p>
-<p class="p1"><span class="Apple-converted-space">  </span>position: absolute;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>top: 16px;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>right: 16px;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>font-size: 16px;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>opacity: 0.6;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>cursor: pointer;</p>
-<p class="p1">}</p>
-<p class="p1">&lt;/style&gt;</p>
-<p class="p1">&lt;/head&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;body&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;!-- WAITING SCREEN --&gt;</p>
-<p class="p1">&lt;div id="waiting" class="screen active"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;h1&gt;YOU ARE CONNECTED&lt;/h1&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;p&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>The light will activate with the music.&lt;br&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>Keep your phone visible.</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;/p&gt;</p>
-<p class="p1">&lt;/div&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;!-- PULSE SCREEN --&gt;</p>
-<p class="p1">&lt;div id="pulseScreen" class="screen"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;div id="pulseText"&gt;&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;div id="stop" onclick="stopPulse()"&gt;STOP ✕&lt;/div&gt;</p>
-<p class="p1">&lt;/div&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;script&gt;</p>
-<p class="p1">/* ========= CONFIG ========= */</p>
-<p class="p1">const BPM = 120; // 👈 CHANGE THIS PER TRACK</p>
-<p class="p1">const interval = 60000 / BPM;</p>
-<p class="p1">const words = ["REGARDE", "JE TE VOIS", "OBÉIS", "DÉSIRE", "MONTRE-TOI"];</p>
-<p class="p1">/* ========================== */</p>
-<p class="p2"><br></p>
-<p class="p1">let pulseInterval;</p>
-<p class="p1">let flash = false;</p>
-<p class="p2"><br></p>
-<p class="p1">// Detect control mode</p>
-<p class="p1">const isControl = new URLSearchParams(window.location.search).get('control');</p>
-<p class="p2"><br></p>
-<p class="p1">if (isControl) {</p>
-<p class="p1"><span class="Apple-converted-space">  </span>document.body.innerHTML = `</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;div style="display:flex;flex-direction:column;justify-content:center;align-items:center;height:100%;gap:20px;"&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;button onclick="startPulse()" style="padding:20px;font-size:24px;"&gt;START MUSIC&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>&lt;button onclick="stopPulse()" style="padding:20px;font-size:24px;"&gt;STOP&lt;/button&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>`;</p>
-<p class="p1">}</p>
-<p class="p2"><br></p>
-<p class="p1">function startPulse() {</p>
-<p class="p1"><span class="Apple-converted-space">  </span>localStorage.setItem("startPulse", Date.now());</p>
-<p class="p1">}</p>
-<p class="p2"><br></p>
-<p class="p1">window.addEventListener("storage", (e) =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">  </span>if (e.key === "startPulse") activatePulse();</p>
-<p class="p1">});</p>
-<p class="p2"><br></p>
-<p class="p1">function activatePulse() {</p>
-<p class="p1"><span class="Apple-converted-space">  </span>document.getElementById('waiting').classList.remove('active');</p>
-<p class="p1"><span class="Apple-converted-space">  </span>document.getElementById('pulseScreen').classList.add('active');</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">  </span>pulseInterval = setInterval(() =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">    </span>flash = !flash;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>document.body.style.background = flash ? "#f2f2f2" : "#111";</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>const t = document.getElementById('pulseText');</p>
-<p class="p1"><span class="Apple-converted-space">    </span>t.innerText = words[Math.floor(Math.random() * words.length)];</p>
-<p class="p1"><span class="Apple-converted-space">  </span>}, interval);</p>
-<p class="p1">}</p>
-<p class="p2"><br></p>
-<p class="p1">function stopPulse() {</p>
-<p class="p1"><span class="Apple-converted-space">  </span>clearInterval(pulseInterval);</p>
-<p class="p1"><span class="Apple-converted-space">  </span>document.body.style.background = "#000";</p>
-<p class="p1"><span class="Apple-converted-space">  </span>document.getElementById('pulseScreen')?.classList.remove('active');</p>
-<p class="p1"><span class="Apple-converted-space">  </span>document.getElementById('waiting')?.classList.add('active');</p>
-<p class="p1">}</p>
-<p class="p1">&lt;/script&gt;</p>
-<p class="p2"><br></p>
-<p class="p1">&lt;/body&gt;</p>
-<p class="p1">&lt;/html&gt;</p>
-</body>
-</html>
+  <meta charset="UTF-8">
+  <title>You Are The Light</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      color: #fff;
+      font-family: Arial, Helvetica, sans-serif;
+      overflow: hidden;
+    }
+
+    .screen {
+      display: none;
+      position: absolute;
+      inset: 0;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    .active { display: flex; }
+
+    #waiting {
+      flex-direction: column;
+      opacity: 0.85;
+    }
+
+    #pulse
