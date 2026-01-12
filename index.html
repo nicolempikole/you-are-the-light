@@ -53,25 +53,25 @@ if (isControl) {
   startButton.style.display = 'block';
 
   startButton.addEventListener('click', async () => {
-    // Hide the button after starting
-    startButton.style.display = 'none';
+  startButton.style.display = 'none';
 
-    // Start audio context
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioCtx.createMediaElementSource(audio);
-    const analyser = audioCtx.createAnalyser();
-    source.connect(analyser);
-    analyser.connect(audioCtx.destination);
+  // 1️⃣ Create AudioContext first
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  await audioCtx.resume();  // ensures it works on mobile
 
-    analyser.fftSize = 1024;
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
+  // 2️⃣ Connect the audio element to the context
+  const source = audioCtx.createMediaElementSource(audio);
+  const analyser = audioCtx.createAnalyser();
+  source.connect(analyser);
+  analyser.connect(audioCtx.destination);
 
-    let isWhite = true;
-    const threshold = 150; // adjust sensitivity if needed
+  // 3️⃣ Play the audio AFTER connecting to context
+  audio.play();
 
-    function animate() {
-      analyser.getByteTimeDomainData(dataArray);
+  // 4️⃣ Start strobe animation
+  animateStrobe(analyser);
+});
+
 
       // calculate average amplitude
       let sum = 0;
