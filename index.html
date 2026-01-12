@@ -2,102 +2,96 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>You Are The Light</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-
 <style>
-html, body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
-  background: #000;
-  color: #fff;
-  font-family: Arial, Helvetica, sans-serif;
-  overflow: hidden;
-}
+  html, body {
+    margin: 0;
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: sans-serif;
+    font-size: 2rem;
+    color: black;
+    background-color: white;
+    transition: background-color 0.05s;
+  }
 
-/* CENTER EVERYTHING */
-.center {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  height: 100%;
-}
+  #startButton {
+    padding: 1rem 2rem;
+    font-size: 2rem;
+    cursor: pointer;
+  }
 
-/* BUTTONS */
-button {
-  margin-top: 20px;
-  padding: 16px 28px;
-  font-size: 18px;
-  background: #fff;
-  color: #000;
-  border: none;
-  cursor: pointer;
-}
+  #message {
+    text-align: center;
+  }
 
-/* STOP BUTTON */
-#stop {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  font-size: 16px;
-  opacity: 0.7;
-}
+  audio {
+    display: none;
+  }
 </style>
 </head>
-
 <body>
+<div id="message">You are connected</div>
+<button id="startButton" style="display:none;">Start</button>
 
-<div id="app" class="center">
-  <h1>YOU ARE CONNECTED</h1>
-  <p>
-    The light will activate with the music.<br>
-    Keep your phone visible.
-  </p>
-</div>
+<audio id="song" src="audio/Get Together.mp3"></audio>
 
 <script>
-/* ========= CONFIG ========= */
-const BPM = 120;
-const interval = 60000 / BPM;
-const words = ["REGARDE", "JE TE VOIS", "OBÉIS", "DÉSIRE", "MONTRE-TOI"];
-/* ========================== */
+const urlParams = new URLSearchParams(window.location.search);
+const isControl = urlParams.get('control') === 'true';
+const message = document.getElementById('message');
+const startButton = document.getElementById('startButton');
+const audio = document.getElementById('song');
 
-const params = new URLSearchParams(window.location.search);
-const isControl = params.get("control");
-
-let pulseInterval = null;
-let flash = false;
-
-// CONTROL MODE
 if (isControl) {
-  document.body.innerHTML = `
-    <div class="center">
-      <button onclick="start()">START MUSIC</button>
-      <button onclick="stop()">STOP</button>
-    </div>
-  `;
-}
+  message.style.display = 'none';
+  startButton.style.display = 'block';
 
-// START PULSE
-function start() {
-  document.getElementById("app")?.remove();
+  startButton.addEventListener('click', async () => {
+    // Hide the button after starting
+    startButton.style.display = 'none';
 
-  pulseInterval = setInterval(() => {
-    flash = !flash;
-    document.body.style.background = flash ? "#f2f2f2" : "#111";
-  }, interval);
-}
+    // Start audio context
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaElementSource(audio);
+    const analyser = audioCtx.createAnalyser();
+    source.connect(analyser);
+    analyser.connect(audioCtx.destination);
 
-// STOP PULSE
-function stop() {
-  clearInterval(pulseInterval);
-  document.body.style.background = "#000";
+    analyser.fftSize = 1024;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+
+    let isWhite = true;
+    const threshold = 150; // adjust sensitivity if needed
+
+    function animate() {
+      analyser.getByteTimeDomainData(dataArray);
+
+      // calculate average amplitude
+      let sum = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        sum += Math.abs(dataArray[i] - 128);
+      }
+      const avg = sum / bufferLength;
+
+      if (avg > threshold) {
+        document.body.style.backgroundColor = isWhite ? 'black' : 'white';
+        isWhite = !isWhite;
+      }
+
+      requestAnimationFrame(animate);
+    }
+
+    audio.play();
+    animate();
+  });
 }
 </script>
-
 </body>
 </html>
