@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>You Are The Light - Test</title>
+<title>You Are The Light - Demo</title>
 <style>
   html, body {
     margin: 0;
@@ -32,81 +32,13 @@
     display: none;
   }
 
-  audio {
-    display: none;
-  }
+  audio { display: none; }
 </style>
 </head>
 <body>
-<div id="message">You are now connected.<br>The experience will start soon.</div>
+<div id="message">You are now connected.<br>Waiting for Start…</div>
 <button id="startButton">Start</button>
 
 <audio id="song" src="audio/Get Together.mp3"></audio>
 
-<!-- Pusher JS -->
-<script src="https://js.pusher.com/8.2/pusher.min.js"></script>
-
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const isControl = urlParams.get('control') === 'true';
-  const message = document.getElementById('message');
-  const startButton = document.getElementById('startButton');
-  const audio = document.getElementById('song');
-
-  // Pusher credentials
-  const PUSHER_KEY = "30c6a2b5192e79fdcbdc";
-  const PUSHER_CLUSTER = "eu";
-
-  // Enable Pusher logging for testing
-  Pusher.logToConsole = true;
-
-  const pusher = new Pusher(PUSHER_KEY, { cluster: PUSHER_CLUSTER });
-  const channel = pusher.subscribe('strobe_channel');
-
-  if(isControl){
-    message.style.display = 'none';
-    startButton.style.display = 'block';
-
-    startButton.addEventListener('click', async () => {
-      startButton.style.display = 'none';
-      audio.play();
-
-      // Send START event to all audience devices
-      // Client events in sandbox: must start with "client-"
-      channel.trigger('client-start', {}); 
-    });
-
-  } else {
-    // AUDIENCE PAGE
-    message.style.display = 'block';
-    document.body.style.backgroundColor = 'black';
-    let firstBeat = true;
-
-    channel.bind('client-start', () => {
-      if(firstBeat){
-        message.style.opacity = '0';
-        firstBeat = false;
-      }
-
-      // Start random strobe
-      startRandomStrobe();
-    });
-  }
-
-  // Random strobe function
-  function startRandomStrobe(){
-    let isWhite = false;
-    function animate(){
-      // Random interval 50ms–300ms
-      const delay = 50 + Math.random()*250;
-      document.body.style.backgroundColor = isWhite ? 'black' : 'white';
-      isWhite = !isWhite;
-      setTimeout(animate, delay);
-    }
-    animate();
-  }
-});
-</script>
-</body>
-</html>
+<script src="https://js.pu
