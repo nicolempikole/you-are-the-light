@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>You Are The Light</title>
+<title>You Are The Light - Test</title>
 <style>
   html, body {
     margin: 0;
@@ -38,10 +38,13 @@
 </style>
 </head>
 <body>
-<div id="message">You are now connected.<br>The experience will start soon. Raise your phone when you feel... TOGETHER</div>
+<div id="message">You are now connected.<br>The experience will start soon.</div>
 <button id="startButton">Start</button>
 
 <audio id="song" src="audio/Get Together.mp3"></audio>
+
+<!-- Pusher JS -->
+<script src="https://js.pusher.com/8.2/pusher.min.js"></script>
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
@@ -51,102 +54,57 @@ document.addEventListener('DOMContentLoaded', () => {
   const startButton = document.getElementById('startButton');
   const audio = document.getElementById('song');
 
-  // BroadcastChannel for communication between control and audience
-  const channel = new BroadcastChannel('strobe_channel');
+  // Pusher credentials
+  const PUSHER_KEY = "30c6a2b5192e79fdcbdc";
+  const PUSHER_CLUSTER = "eu";
 
-  // Function to start strobe on a page
-  function startStrobe(beatSource=null, isAudience=false){
-    let bufferLength, dataArray;
-    if(beatSource){
-      bufferLength = beatSource.frequencyBinCount;
-      dataArray = new Uint8Array(bufferLength);
-    }
+  // Enable Pusher logging for testing
+  Pusher.logToConsole = true;
 
-    let isWhite = false;
-    const threshold = 150;
-
-    function animate(){
-      if(beatSource){
-        // Control page: use audio amplitude to detect beats
-        beatSource.getByteTimeDomainData(dataArray);
-        let sum = 0;
-        for(let i=0;i<bufferLength;i++){
-          sum += Math.abs(dataArray[i]-128);
-        }
-        const avg = sum/bufferLength;
-
-        if(avg > threshold){
-          if(avg > threshold*1.5){
-            // strong beat = hard switch
-            document.body.style.backgroundColor = isWhite ? 'black' : 'white';
-            isWhite = !isWhite;
-          } else {
-            // soft beat = smooth fade
-            document.body.style.transition = 'background-color 0.1s';
-            document.body.style.backgroundColor = isWhite ? '#222' : '#eee';
-            isWhite = !isWhite;
-          }
-
-          // Send beat info to audience
-          channel.postMessage({action:'BEAT', intensity: avg});
-        }
-      }
-      requestAnimationFrame(animate);
-    }
-
-    animate();
-  }
+  const pusher = new Pusher(PUSHER_KEY, { cluster: PUSHER_CLUSTER });
+  const channel = pusher.subscribe('strobe_channel');
 
   if(isControl){
-    // CONTROL PAGE
     message.style.display = 'none';
     startButton.style.display = 'block';
 
-    // Setup AudioContext and Analyser
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const source = audioCtx.createMediaElementSource(audio);
-    const analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 1024;
-    source.connect(analyser);
-    analyser.connect(audioCtx.destination);
-
     startButton.addEventListener('click', async () => {
       startButton.style.display = 'none';
-      await audioCtx.resume();
       audio.play();
-      startStrobe(analyser);
+
+      // Send START event to all audience devices
+      // Client events in sandbox: must start with "client-"
+      channel.trigger('client-start', {}); 
     });
 
   } else {
     // AUDIENCE PAGE
-    document.body.style.backgroundColor = 'black';
     message.style.display = 'block';
-
+    document.body.style.backgroundColor = 'black';
     let firstBeat = true;
-    let isWhite = false;
 
-    // Listen for beat signals from control page
-    channel.addEventListener('message', (event) => {
-      if(event.data.action === 'BEAT'){
-        const intensity = event.data.intensity;
-
-        // Fade out text on first beat
-        if(firstBeat){
-          message.style.opacity = '0';
-          firstBeat = false;
-        }
-
-        // Hard vs soft transition based on intensity
-        if(intensity > 225){
-          document.body.style.transition = 'background-color 0.05s';
-          document.body.style.backgroundColor = isWhite ? 'black' : 'white';
-        } else {
-          document.body.style.transition = 'background-color 0.2s';
-          document.body.style.backgroundColor = isWhite ? '#222' : '#eee';
-        }
-        isWhite = !isWhite;
+    channel.bind('client-start', () => {
+      if(firstBeat){
+        message.style.opacity = '0';
+        firstBeat = false;
       }
+
+      // Start random strobe
+      startRandomStrobe();
     });
+  }
+
+  // Random strobe function
+  function startRandomStrobe(){
+    let isWhite = false;
+    function animate(){
+      // Random interval 50ms–300ms
+      const delay = 50 + Math.random()*250;
+      document.body.style.backgroundColor = isWhite ? 'black' : 'white';
+      isWhite = !isWhite;
+      setTimeout(animate, delay);
+    }
+    animate();
   }
 });
 </script>
