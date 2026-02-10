@@ -70,6 +70,7 @@ html, body {
 <div id="control">
   <h2>Control Panel</h2>
   <button id="startBtn">Start Performance</button>
+  <button id="pauseBtn" disabled>Pause</button>
   <button id="stopBtn" disabled>Stop Performance</button>
   <div class="status" id="status">Ready</div>
 </div>
@@ -87,6 +88,7 @@ const control = document.getElementById("control");
 const screen = document.getElementById("screen");
 const audio = document.getElementById("audio");
 const startBtn = document.getElementById("startBtn");
+const pauseBtn = document.getElementById("pauseBtn");
 const stopBtn = document.getElementById("stopBtn");
 const status = document.getElementById("status");
 
@@ -94,6 +96,7 @@ const status = document.getElementById("status");
 let armed = false;
 let strobeInterval = null;
 let isPerforming = false;
+let isPaused = false;
 
 // Your Vercel server URL
 const SERVER_URL = "https://light-audience-server.vercel.app";
@@ -135,7 +138,10 @@ if (isControl) {
       
       if (response.ok) {
         isPerforming = true;
+        isPaused = false;
         startBtn.disabled = true;
+        pauseBtn.disabled = false;
+        pauseBtn.textContent = "Pause";
         stopBtn.disabled = false;
         status.textContent = "Performance LIVE";
         
@@ -153,6 +159,45 @@ if (isControl) {
     }
   });
 
+  pauseBtn.addEventListener("click", async () => {
+    try {
+      if (isPaused) {
+        // Resume
+        status.textContent = "Resuming...";
+        const response = await fetch(`${SERVER_URL}/resume`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+        
+        if (response.ok) {
+          isPaused = false;
+          pauseBtn.textContent = "Pause";
+          status.textContent = "Performance LIVE";
+          audio.play().catch(err => console.error("Audio play error:", err));
+          startStrobe();
+        }
+      } else {
+        // Pause
+        status.textContent = "Pausing...";
+        const response = await fetch(`${SERVER_URL}/pause`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+        
+        if (response.ok) {
+          isPaused = true;
+          pauseBtn.textContent = "Resume";
+          status.textContent = "PAUSED";
+          audio.pause();
+          stopStrobe();
+        }
+      }
+    } catch (error) {
+      console.error("Pause/Resume error:", error);
+      status.textContent = "Error";
+    }
+  });
+
   stopBtn.addEventListener("click", async () => {
     try {
       status.textContent = "Stopping...";
@@ -164,7 +209,10 @@ if (isControl) {
       
       if (response.ok) {
         isPerforming = false;
+        isPaused = false;
         startBtn.disabled = false;
+        pauseBtn.disabled = true;
+        pauseBtn.textContent = "Pause";
         stopBtn.disabled = true;
         status.textContent = "Stopped";
         
@@ -186,9 +234,27 @@ else {
   control.style.display = "none";
 
   // Tap to arm the experience
-  gate.addEventListener("click", () => {
+  gate.addEventListener("click", async () => {
     armed = true;
-    gate.textContent = "Armed. Waiting for performance to start...";
+    gate.textContent = "Checking status...";
+    
+    // Check if performance is already running (late comer support)
+    try {
+      const response = await fetch(`${SERVER_URL}/status`);
+      const state = await response.json();
+      
+      if (state.isRunning && !state.isPaused) {
+        // Performance already started - join immediately!
+        gate.style.display = "none";
+        startStrobe();
+      } else {
+        // Waiting for performance to start
+        gate.textContent = "Armed. Waiting for performance to start...";
+      }
+    } catch (error) {
+      console.error("Status check error:", error);
+      gate.textContent = "Armed. Waiting for performance to start...";
+    }
   });
 
   // Listen for START event from server
@@ -196,6 +262,21 @@ else {
     if (armed) {
       gate.style.display = "none";
       // NO AUDIO on audience phones - only strobe!
+      startStrobe();
+    }
+  });
+
+  // Listen for PAUSE event from server
+  channel.bind('PAUSE', (data) => {
+    if (armed) {
+      stopStrobe();
+      // Don't show gate, just freeze
+    }
+  });
+
+  // Listen for RESUME event from server
+  channel.bind('RESUME', (data) => {
+    if (armed) {
       startStrobe();
     }
   });
