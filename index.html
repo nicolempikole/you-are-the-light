@@ -55,13 +55,15 @@ html, body {
   font-size: 1rem;
   opacity: 0.7;
 }
-#screen {
+#video {
   position: fixed;
-  inset: 0;
-  background: black;
-}
-.strobe-white {
-  background: white !important;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+  z-index: 1;
 }
 </style>
 </head>
@@ -74,7 +76,7 @@ html, body {
   <button id="stopBtn" disabled>Stop Performance</button>
   <div class="status" id="status">Ready</div>
 </div>
-<div id="screen"></div>
+<video id="video" playsinline muted loop></video>
 <audio id="audio" src="audio/Get Together.mp3"></audio>
 
 <script>
@@ -85,7 +87,7 @@ const isControl = params.get("control") === "true";
 // Get DOM elements
 const gate = document.getElementById("gate");
 const control = document.getElementById("control");
-const screen = document.getElementById("screen");
+const video = document.getElementById("video");
 const audio = document.getElementById("audio");
 const startBtn = document.getElementById("startBtn");
 const pauseBtn = document.getElementById("pauseBtn");
@@ -94,9 +96,11 @@ const status = document.getElementById("status");
 
 // State
 let armed = false;
-let strobeInterval = null;
 let isPerforming = false;
 let isPaused = false;
+
+// Video source - audience plays this on their phones
+const VIDEO_SRC = "audio/itrance.mp4";
 
 // Your Vercel server URL
 const SERVER_URL = "https://light-audience-server.vercel.app";
@@ -145,11 +149,8 @@ if (isControl) {
         stopBtn.disabled = false;
         status.textContent = "Performance LIVE";
         
-        // Play audio locally on control panel
+        // Play audio locally on control panel (NO VIDEO on control panel)
         audio.play().catch(err => console.error("Audio play error:", err));
-        
-        // Start local strobe for control panel
-        startStrobe();
       } else {
         status.textContent = "Error: Failed to start";
       }
@@ -174,7 +175,6 @@ if (isControl) {
           pauseBtn.textContent = "Pause";
           status.textContent = "Performance LIVE";
           audio.play().catch(err => console.error("Audio play error:", err));
-          startStrobe();
         }
       } else {
         // Pause
@@ -189,7 +189,6 @@ if (isControl) {
           pauseBtn.textContent = "Resume";
           status.textContent = "PAUSED";
           audio.pause();
-          stopStrobe();
         }
       }
     } catch (error) {
@@ -218,7 +217,6 @@ if (isControl) {
         
         audio.pause();
         audio.currentTime = 0;
-        stopStrobe();
       }
     } catch (error) {
       console.error("Stop error:", error);
@@ -233,6 +231,9 @@ else {
   gate.style.display = "flex";
   control.style.display = "none";
 
+  // Set video source (loaded but not displayed yet)
+  video.src = VIDEO_SRC;
+
   // Tap to arm the experience
   gate.addEventListener("click", async () => {
     armed = true;
@@ -245,8 +246,7 @@ else {
       
       if (state.isRunning && !state.isPaused) {
         // Performance already started - join immediately!
-        gate.style.display = "none";
-        startStrobe();
+        startVideo();
       } else {
         // Waiting for performance to start
         gate.textContent = "Armed. Waiting for performance to start...";
@@ -260,59 +260,60 @@ else {
   // Listen for START event from server
   channel.bind('START', (data) => {
     if (armed) {
-      gate.style.display = "none";
-      // NO AUDIO on audience phones - only strobe!
-      startStrobe();
+      startVideo();
     }
   });
 
   // Listen for PAUSE event from server
   channel.bind('PAUSE', (data) => {
     if (armed) {
-      stopStrobe();
-      // Don't show gate, just freeze
+      video.pause();
     }
   });
 
   // Listen for RESUME event from server
   channel.bind('RESUME', (data) => {
     if (armed) {
-      startStrobe();
+      video.play().catch(err => console.error("Video play error:", err));
     }
   });
 
   // Listen for STOP event from server
   channel.bind('STOP', (data) => {
-    // NO AUDIO to stop on phones - only strobe
-    stopStrobe();
+    stopVideo();
     gate.style.display = "flex";
     gate.textContent = "Performance ended. Tap to reset.";
     armed = false;
   });
 }
 
-// ============= STROBE FUNCTIONS =============
-function startStrobe() {
-  if (strobeInterval) return;
+// ============= VIDEO FUNCTIONS =============
+function startVideo() {
+  gate.style.display = "none";
+  video.style.display = "block";
+  video.currentTime = 0; // Start from beginning
   
-  let isWhite = false;
-  strobeInterval = setInterval(() => {
-    if (isWhite) {
-      screen.classList.remove('strobe-white');
-    } else {
-      screen.classList.add('strobe-white');
-    }
-    isWhite = !isWhite;
-  }, 100); // 100ms = 10 flashes per second
+  // Play video (muted, fullscreen)
+  video.play().catch(err => {
+    console.error("Video play error:", err);
+    // Fallback: show error on gate
+    gate.style.display = "flex";
+    gate.textContent = "Error playing video. Tap to retry.";
+  });
 }
 
-function stopStrobe() {
-  if (strobeInterval) {
-    clearInterval(strobeInterval);
-    strobeInterval = null;
-    screen.classList.remove('strobe-white');
-  }
+function stopVideo() {
+  video.pause();
+  video.currentTime = 0;
+  video.style.display = "none";
 }
+
+// Handle video errors
+video.addEventListener('error', (e) => {
+  console.error('Video error:', e);
+  gate.textContent = "Error loading video";
+  gate.style.display = "flex";
+});
 
 // Handle audio errors (only relevant for control panel)
 audio.addEventListener('error', (e) => {
