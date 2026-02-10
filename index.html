@@ -66,7 +66,7 @@ html, body {
 </style>
 </head>
 <body>
-<div id="gate">Tap to be the light</div>
+<div id="gate">Tap to enter the trance</div>
 <div id="control">
   <h2>Control Panel</h2>
   <button id="startBtn">Start Performance</button>
@@ -95,8 +95,8 @@ let armed = false;
 let strobeInterval = null;
 let isPerforming = false;
 
-// Your Render server URL - UPDATE THIS!
-const SERVER_URL = "https://light-audience.onrender.com";
+// Your Vercel server URL
+const SERVER_URL = "https://light-audience-server.vercel.app";
 
 // Initialize Pusher
 const pusher = new Pusher('30c6a2b5192e79fdcbdc', {
@@ -109,6 +109,19 @@ const channel = pusher.subscribe('strobe_channel');
 if (isControl) {
   gate.style.display = "none";
   control.style.display = "flex";
+  
+  // Wake up the server immediately when control panel loads
+  status.textContent = "Waking up server...";
+  fetch(`${SERVER_URL}/`)
+    .then(res => res.json())
+    .then(data => {
+      status.textContent = "Ready";
+      console.log("Server ready:", data);
+    })
+    .catch(err => {
+      status.textContent = "Server connection issue - try refreshing";
+      console.error("Server ping failed:", err);
+    });
 
   startBtn.addEventListener("click", async () => {
     try {
