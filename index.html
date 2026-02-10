@@ -1,221 +1,103 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-  />
-  <title>ENTER THE TRANCE</title>
+<meta charset="UTF-8">
+<title>You Are The Light</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-  <style>
-    body {
-      margin: 0;
-      background: black;
-      overflow: hidden;
-      font-family: Arial, sans-serif;
-    }
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  color: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+  overflow: hidden;
+}
 
-    /* ---------- GATE ---------- */
-    #gate {
-      position: fixed;
-      inset: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: black;
-      z-index: 10;
-    }
+/* CENTER EVERYTHING */
+.center {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  height: 100%;
+}
 
-    .cta {
-      color: white;
-      font-size: 2rem;
-      letter-spacing: 0.25em;
-      text-transform: uppercase;
-      text-align: center;
-      animation: pulse 1.3s infinite;
-    }
+/* BUTTONS */
+button {
+  margin-top: 20px;
+  padding: 16px 28px;
+  font-size: 18px;
+  background: #fff;
+  color: #000;
+  border: none;
+  cursor: pointer;
+}
 
-    @keyframes pulse {
-      0%   { opacity: 0.3; }
-      50%  { opacity: 1; }
-      100% { opacity: 0.3; }
-    }
-
-    /* ---------- VIDEO ---------- */
-    video {
-      position: fixed;
-      inset: 0;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-      background: black;
-    }
-
-    video::-webkit-media-controls {
-      display: none !important;
-    }
-
-    /* ---------- BLACKOUT ---------- */
-    #blackout {
-      position: fixed;
-      inset: 0;
-      background: black;
-      z-index: 999;
-      display: none;
-    }
-
-    /* ---------- CONTROL ---------- */
-    #control {
-      position: fixed;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      z-index: 1000;
-      display: none;
-    }
-
-    #control button {
-      padding: 14px 22px;
-      margin: 6px;
-      font-size: 1.1rem;
-      border: none;
-      cursor: pointer;
-    }
-
-    #start {
-      background: white;
-    }
-
-    #kill {
-      background: red;
-      color: white;
-    }
-  </style>
+/* STOP BUTTON */
+#stop {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  font-size: 16px;
+  opacity: 0.7;
+}
+</style>
 </head>
 
 <body>
 
-  <!-- GATE -->
-  <div id="gate">
-    <div class="cta">TAP TO ENTER<br>THE TRANCE</div>
-  </div>
+<div id="app" class="center">
+  <h1>YOU ARE CONNECTED</h1>
+  <p>
+    The light will activate with the music.<br>
+    Keep your phone visible.
+  </p>
+</div>
 
-  <!-- BLACKOUT -->
-  <div id="blackout"></div>
+<script>
+/* ========= CONFIG ========= */
+const BPM = 120;
+const interval = 60000 / BPM;
+const words = ["REGARDE", "JE TE VOIS", "OBÉIS", "DÉSIRE", "MONTRE-TOI"];
+/* ========================== */
 
-  <!-- VIDEO -->
-  <video
-    id="track"
-    src="itrance.mp4"
-    playsinline
-    muted
-    preload="auto"
-  ></video>
+const params = new URLSearchParams(window.location.search);
+const isControl = params.get("control");
 
-  <!-- CONTROL -->
-  <div id="control">
-    <button id="start">START PERFORMANCE</button>
-    <button id="kill">EMERGENCY KILL</button>
-  </div>
+let pulseInterval = null;
+let flash = false;
 
-  <script>
-    const video = document.getElementById("track");
-    const gate = document.getElementById("gate");
-    const blackout = document.getElementById("blackout");
-    const control = document.getElementById("control");
-    const startBtn = document.getElementById("start");
-    const killBtn = document.getElementById("kill");
+// CONTROL MODE
+if (isControl) {
+  document.body.innerHTML = `
+    <div class="center">
+      <button onclick="start()">START MUSIC</button>
+      <button onclick="stop()">STOP</button>
+    </div>
+  `;
+}
 
-    const params = new URLSearchParams(window.location.search);
-    const isControl = params.get("control") === "true";
+// START PULSE
+function start() {
+  document.getElementById("app")?.remove();
 
-    const STATE_KEY = "SHOW_STATE";
-    let armed = false;
+  pulseInterval = setInterval(() => {
+    flash = !flash;
+    document.body.style.background = flash ? "#f2f2f2" : "#111";
+  }, interval);
+}
 
-    function getState() {
-      return JSON.parse(localStorage.getItem(STATE_KEY) || "{}");
-    }
-
-    function setState(state) {
-      localStorage.setItem(STATE_KEY, JSON.stringify(state));
-    }
-
-    /* ---------------- CONTROL MODE ---------------- */
-    if (isControl) {
-      control.style.display = "block";
-      video.muted = false;
-      video.volume = 1;
-
-      startBtn.addEventListener("click", () => {
-        const startTime = Date.now();
-
-        setState({
-          playing: true,
-          killed: false,
-          startedAt: startTime
-        });
-
-        blackout.style.display = "none";
-        video.currentTime = 0;
-        video.play();
-      });
-
-      killBtn.addEventListener("click", () => {
-        setState({
-          playing: false,
-          killed: true
-        });
-
-        video.pause();
-      });
-    }
-
-    /* ---------------- AUDIENCE GATE ---------------- */
-    gate.addEventListener("click", async () => {
-      gate.style.display = "none";
-
-      // Unlock autoplay + fullscreen (iOS requirement)
-      await video.play();
-      video.pause();
-
-      if (video.requestFullscreen) {
-        video.requestFullscreen();
-      } else if (video.webkitEnterFullscreen) {
-        video.webkitEnterFullscreen();
-      }
-
-      armed = true;
-      trySync();
-    });
-
-    /* ---------------- SYNC + KILL ---------------- */
-    function trySync() {
-      if (!armed || isControl) return;
-
-      const state = getState();
-
-      if (state.killed) {
-        video.pause();
-        blackout.style.display = "block";
-        return;
-      }
-
-      blackout.style.display = "none";
-
-      if (!state.playing || !state.startedAt) return;
-
-      const elapsed = (Date.now() - state.startedAt) / 1000;
-      video.currentTime = elapsed;
-      video.play();
-    }
-
-    window.addEventListener("storage", (e) => {
-      if (e.key === STATE_KEY) {
-        trySync();
-      }
-    });
-  </script>
+// STOP PULSE
+function stop() {
+  clearInterval(pulseInterval);
+  document.body.style.background = "#000";
+}
+</script>
 
 </body>
 </html>
