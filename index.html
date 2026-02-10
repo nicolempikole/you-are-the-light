@@ -4,9 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>I Trance</title>
-
 <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
-
 <style>
 html, body {
   margin: 0;
@@ -15,8 +13,9 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
 }
-
 #gate, #control {
   position: fixed;
   inset: 0;
@@ -28,44 +27,215 @@ html, body {
   font-family: sans-serif;
   font-size: 2rem;
   z-index: 10;
+  cursor: pointer;
 }
-
 #control {
   flex-direction: column;
   gap: 1rem;
   display: none;
 }
-
+#control button {
+  padding: 1rem 2rem;
+  font-size: 1.5rem;
+  background: white;
+  color: black;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+#control button:active {
+  transform: scale(0.95);
+}
+#control button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+#control .status {
+  font-size: 1rem;
+  opacity: 0.7;
+}
 #screen {
   position: fixed;
   inset: 0;
   background: black;
 }
+.strobe-white {
+  background: white !important;
+}
 </style>
 </head>
-
 <body>
-
-<div id="gate">Tap to enter the trance</div>
-
+<div id="gate">Tap to be the light</div>
 <div id="control">
-  <button id="start">Start Performance</button>
+  <h2>Control Panel</h2>
+  <button id="startBtn">Start Performance</button>
+  <button id="stopBtn" disabled>Stop Performance</button>
+  <div class="status" id="status">Ready</div>
 </div>
-
 <div id="screen"></div>
-
-<audio id="audio" src="Get Together.mp3"></audio>
+<audio id="audio" src="audio/Get Together.mp3"></audio>
 
 <script>
+// Check if this is the control panel or audience view
 const params = new URLSearchParams(location.search);
 const isControl = params.get("control") === "true";
 
+// Get DOM elements
 const gate = document.getElementById("gate");
 const control = document.getElementById("control");
 const screen = document.getElementById("screen");
 const audio = document.getElementById("audio");
+const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
+const status = document.getElementById("status");
 
+// State
 let armed = false;
 let strobeInterval = null;
+let isPerforming = false;
 
-/* ---------*
+// Your Render server URL - UPDATE THIS!
+const SERVER_URL = "https://light-audience.onrender.com";
+
+// Initialize Pusher
+const pusher = new Pusher('30c6a2b5192e79fdcbdc', {
+  cluster: 'eu'
+});
+
+const channel = pusher.subscribe('strobe_channel');
+
+// ============= CONTROL PANEL MODE =============
+if (isControl) {
+  gate.style.display = "none";
+  control.style.display = "flex";
+
+  startBtn.addEventListener("click", async () => {
+    try {
+      status.textContent = "Starting...";
+      
+      // Send start signal to server
+      const response = await fetch(`${SERVER_URL}/start`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      
+      if (response.ok) {
+        isPerforming = true;
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        status.textContent = "Performance LIVE";
+        
+        // Play audio locally on control panel
+        audio.play().catch(err => console.error("Audio play error:", err));
+        
+        // Start local strobe for control panel
+        startStrobe();
+      } else {
+        status.textContent = "Error: Failed to start";
+      }
+    } catch (error) {
+      console.error("Start error:", error);
+      status.textContent = "Error: Cannot connect to server";
+    }
+  });
+
+  stopBtn.addEventListener("click", async () => {
+    try {
+      status.textContent = "Stopping...";
+      
+      const response = await fetch(`${SERVER_URL}/stop`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      
+      if (response.ok) {
+        isPerforming = false;
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+        status.textContent = "Stopped";
+        
+        audio.pause();
+        audio.currentTime = 0;
+        stopStrobe();
+      }
+    } catch (error) {
+      console.error("Stop error:", error);
+      status.textContent = "Error stopping";
+    }
+  });
+}
+
+// ============= AUDIENCE MODE =============
+else {
+  // Show gate screen initially
+  gate.style.display = "flex";
+  control.style.display = "none";
+
+  // Tap to arm the experience
+  gate.addEventListener("click", () => {
+    armed = true;
+    gate.textContent = "Armed. Waiting for performance to start...";
+  });
+
+  // Listen for START event from server
+  channel.bind('START', (data) => {
+    if (armed) {
+      gate.style.display = "none";
+      // NO AUDIO on audience phones - only strobe!
+      startStrobe();
+    }
+  });
+
+  // Listen for STOP event from server
+  channel.bind('STOP', (data) => {
+    // NO AUDIO to stop on phones - only strobe
+    stopStrobe();
+    gate.style.display = "flex";
+    gate.textContent = "Performance ended. Tap to reset.";
+    armed = false;
+  });
+}
+
+// ============= STROBE FUNCTIONS =============
+function startStrobe() {
+  if (strobeInterval) return;
+  
+  let isWhite = false;
+  strobeInterval = setInterval(() => {
+    if (isWhite) {
+      screen.classList.remove('strobe-white');
+    } else {
+      screen.classList.add('strobe-white');
+    }
+    isWhite = !isWhite;
+  }, 100); // 100ms = 10 flashes per second
+}
+
+function stopStrobe() {
+  if (strobeInterval) {
+    clearInterval(strobeInterval);
+    strobeInterval = null;
+    screen.classList.remove('strobe-white');
+  }
+}
+
+// Handle audio errors (only relevant for control panel)
+audio.addEventListener('error', (e) => {
+  console.error('Audio error:', e);
+  if (isControl) {
+    status.textContent = "Error: Audio file not found";
+  }
+});
+
+// Log connection status
+pusher.connection.bind('connected', () => {
+  console.log('Pusher connected!');
+});
+
+pusher.connection.bind('error', (err) => {
+  console.error('Pusher connection error:', err);
+});
+</script>
+</body>
+</html>
