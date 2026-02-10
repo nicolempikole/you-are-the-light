@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>I Trance</title>
 
+<script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+
 <style>
 html, body {
   margin: 0;
@@ -48,7 +50,6 @@ html, body {
 
 <div id="control">
   <button id="start">Start Performance</button>
-  <button id="kill">Emergency Kill</button>
 </div>
 
 <div id="screen"></div>
@@ -67,65 +68,4 @@ const audio = document.getElementById("audio");
 let armed = false;
 let strobeInterval = null;
 
-/* ---------- CONTROL MODE ---------- */
-if (isControl) {
-  gate.style.display = "none";
-  control.style.display = "flex";
-  audio.volume = 1;
-
-  document.getElementById("start").onclick = () => {
-    localStorage.setItem("itrance:start", Date.now());
-    audio.currentTime = 0;
-    audio.play();
-  };
-
-  document.getElementById("kill").onclick = () => {
-    localStorage.setItem("itrance:kill", Date.now());
-    audio.pause();
-  };
-}
-
-/* ---------- AUDIENCE MODE ---------- */
-if (!isControl) {
-  audio.muted = true;
-
-  gate.addEventListener("click", async () => {
-    await document.documentElement.requestFullscreen();
-    gate.style.display = "none";
-    armed = true;
-  });
-}
-
-/* ---------- SYNC LISTENERS ---------- */
-window.addEventListener("storage", e => {
-
-  if (!armed) return;
-
-  if (e.key === "itrance:start") {
-    startStrobe();
-  }
-
-  if (e.key === "itrance:kill") {
-    stopStrobe();
-  }
-});
-
-/* ---------- STROBE ---------- */
-function startStrobe() {
-  stopStrobe();
-
-  strobeInterval = setInterval(() => {
-    const v = Math.random() > 0.5 ? "white" : "black";
-    screen.style.background = v;
-  }, 60 + Math.random() * 200);
-}
-
-function stopStrobe() {
-  clearInterval(strobeInterval);
-  strobeInterval = null;
-  screen.style.background = "black";
-}
-</script>
-
-</body>
-</html>
+/* ---------*
