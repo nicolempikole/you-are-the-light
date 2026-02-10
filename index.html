@@ -1,102 +1,86 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>You Are The Light</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-
-<style>
-html, body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
-  background: #000;
-  color: #fff;
-  font-family: Arial, Helvetica, sans-serif;
-  overflow: hidden;
-}
-
-/* CENTER EVERYTHING */
-.center {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  height: 100%;
-}
-
-/* BUTTONS */
-button {
-  margin-top: 20px;
-  padding: 16px 28px;
-  font-size: 18px;
-  background: #fff;
-  color: #000;
-  border: none;
-  cursor: pointer;
-}
-
-/* STOP BUTTON */
-#stop {
-  position: fixed;
-  top: 16px;
-  right: 16px;
-  font-size: 16px;
-  opacity: 0.7;
-}
-</style>
 </head>
-
 <body>
 
-<div id="app" class="center">
-  <h1>YOU ARE CONNECTED</h1>
-  <p>
-    The light will activate with the music.<br>
-    Keep your phone visible.
-  </p>
-</div>
+<div id="message">You'll be soon Nicole's Light</div>
+<button id="startButton">Start</button>
+
+<audio id="song" src="audio/Get Together.mp3"></audio>
+@@ -48,9 +48,79 @@
 
 <script>
-/* ========= CONFIG ========= */
-const BPM = 120;
-const interval = 60000 / BPM;
-const words = ["REGARDE", "JE TE VOIS", "OBÉIS", "DÉSIRE", "MONTRE-TOI"];
-/* ========================== */
+document.addEventListener('DOMContentLoaded', () => {
 
-const params = new URLSearchParams(window.location.search);
-const isControl = params.get("control");
+  // Check URL for ?control=true
+  const urlParams = new URLSearchParams(window.location.search);
+  let isControl = urlParams.get('control') === 'true';
 
-let pulseInterval = null;
-let flash = false;
+  // Extra safety: if page is on localhost or control=true query, treat as control
+  if(location.hostname === "localhost") isControl = true;
 
-// CONTROL MODE
-if (isControl) {
-  document.body.innerHTML = `
-    <div class="center">
-      <button onclick="start()">START MUSIC</button>
-      <button onclick="stop()">STOP</button>
-    </div>
-  `;
-}
+  const message = document.getElementById('message');
+  const startButton = document.getElementById('startButton');
+  const audio = document.getElementById('song');
 
-// START PULSE
-function start() {
-  document.getElementById("app")?.remove();
+  // Pusher credentials
+  const PUSHER_KEY = "30c6a2b5192e79fdcbdc";
+  const PUSHER_CLUSTER = "eu";
 
-  pulseInterval = setInterval(() => {
-    flash = !flash;
-    document.body.style.background = flash ? "#f2f2f2" : "#111";
-  }, interval);
-}
+  const pusher = new Pusher(PUSHER_KEY, { cluster: PUSHER_CLUSTER });
+  const channel = pusher.subscribe('strobe_channel');
 
-// STOP PULSE
-function stop() {
-  clearInterval(pulseInterval);
-  document.body.style.background = "#000";
-}
+  if(isControl){
+    // CONTROL MODE
+    message.style.display = 'none';
+    startButton.style.display = 'block';
+
+    startButton.addEventListener('click', async () => {
+      startButton.style.display = 'none';
+      await audio.play(); // music plays on control only
+
+      // Trigger audience via public Node.js server
+      fetch("https://light-audience.onrender.com/start", { method: "POST" })
+        .then(res => res.json())
+        .then(console.log)
+        .catch(console.error);
+    });
+
+  } else {
+    // AUDIENCE MODE
+    let firstBeat = true;
+
+    channel.bind('START', () => {
+      if(firstBeat){
+        message.style.opacity = '0'; // fade text
+        firstBeat = false;
+      }
+      startRandomStrobe();
+    });
+  }
+
+  // Random strobe function
+  function startRandomStrobe(){
+    let isWhite = false;
+
+    function animate(){
+      const intensity = Math.random();
+      const delay = 50 + Math.random()*250;
+
+      if(intensity > 0.7){
+        document.body.style.transition = 'background-color 0.05s';
+        document.body.style.backgroundColor = isWhite ? 'black' : 'white';
+      } else {
+        document.body.style.transition = 'background-color 0.2s';
+        document.body.style.backgroundColor = isWhite ? '#222' : '#eee';
+      }
+
+      isWhite = !isWhite;
+      setTimeout(animate, delay);
+    }
+
+    animate();
+  }
+
+});
 </script>
 
 </body>
