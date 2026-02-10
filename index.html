@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>I Trance</title>
 <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
 <style>
@@ -15,8 +15,9 @@ html, body {
   overflow: hidden;
   -webkit-user-select: none;
   user-select: none;
+  touch-action: manipulation;
 }
-#gate, #control {
+#gate, #control, #joinBtn {
   position: fixed;
   inset: 0;
   background: black;
@@ -30,15 +31,23 @@ html, body {
   cursor: pointer;
   text-align: center;
   padding: 2rem;
+  flex-direction: column;
 }
-#gate.waiting {
+#gate.waiting, #joinBtn {
   font-size: 1.5rem;
-  opacity: 0.8;
+}
+#joinBtn {
+  display: none;
+  z-index: 20;
+}
+#joinBtn .sub {
+  font-size: 1rem;
+  opacity: 0.7;
+  margin-top: 0.5rem;
 }
 #control {
-  flex-direction: column;
-  gap: 1rem;
   display: none;
+  gap: 1rem;
 }
 #control button {
   padding: 1rem 2rem;
@@ -49,13 +58,13 @@ html, body {
   border-radius: 8px;
   cursor: pointer;
   font-weight: bold;
+  -webkit-tap-highlight-color: transparent;
 }
 #control button:active {
   transform: scale(0.95);
 }
 #control button:disabled {
   opacity: 0.5;
-  cursor: not-allowed;
 }
 #control .status {
   font-size: 1rem;
@@ -72,33 +81,18 @@ html, body {
   z-index: 1;
   background: black;
 }
-#video:-webkit-full-screen,
-#video:fullscreen {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+/* Android: CSS fullscreen fallback */
+#video.android-fallback {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999 !important;
 }
-/* Late comer join button */
-#joinBtn {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.9);
-  color: white;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  font-family: sans-serif;
-  font-size: 2rem;
-  z-index: 20;
-  cursor: pointer;
-  text-align: center;
-  padding: 2rem;
-  flex-direction: column;
-  gap: 1rem;
-}
-#joinBtn .sub {
-  font-size: 1rem;
-  opacity: 0.7;
+/* Hide controls */
+#video::-webkit-media-controls {
+  display: none !important;
 }
 </style>
 </head>
@@ -115,10 +109,18 @@ html, body {
   <button id="stopBtn" disabled>Stop Performance</button>
   <div class="status" id="status">Ready</div>
 </div>
+<!-- Default: playsinline for Android compatibility -->
 <video id="video" playsinline muted loop></video>
 <audio id="audio" src="audio/Get Together.mp3"></audio>
 
 <script>
+// Platform detection
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isAndroid = /Android/.test(navigator.userAgent);
+
+console.log("Platform:", isIOS ? "iOS" : isAndroid ? "Android" : "Other");
+
 const params = new URLSearchParams(location.search);
 const isControl = params.get("control") === "true";
 
@@ -135,7 +137,7 @@ const status = document.getElementById("status");
 let armed = false;
 let isPerforming = false;
 let isPaused = false;
-let performanceAlreadyStarted = false; // Track if we're late
+let performanceAlreadyStarted = false;
 
 const VIDEO_SRC = "audio/itrance.mp4";
 const SERVER_URL = "https://light-audience-server.vercel.app";
@@ -143,174 +145,70 @@ const SERVER_URL = "https://light-audience-server.vercel.app";
 const pusher = new Pusher('30c6a2b5192e79fdcbdc', { cluster: 'eu' });
 const channel = pusher.subscribe('strobe_channel');
 
+// Cross-platform fullscreen
 async function enterFullscreen(element) {
-  try {
-    if (element.requestFullscreen) await element.requestFullscreen();
-    else if (element.webkitRequestFullscreen) await element.webkitRequestFullscreen();
-    else if (element.msRequestFullscreen) await element.msRequestFullscreen();
-    else if (element.mozRequestFullScreen) await element.mozRequestFullScreen();
-  } catch (err) {
-    console.log("Fullscreen failed:", err);
+  // iOS: Remove playsinline to force native fullscreen
+  if (isIOS) {
+    element.removeAttribute('playsinline');
+    element.removeAttribute('webkit-playsinline');
+    element.load();
+    return; // iOS handles fullscreen natively when playsinline is removed
+  }
+  
+  // Android/Other: Use Fullscreen API
+  const methods = ['requestFullscreen', 'webkitRequestFullscreen', 'mozRequestFullScreen', 'msRequestFullscreen'];
+  for (const method of methods) {
+    if (element[method]) {
+      try {
+        await element[method]();
+        return;
+      } catch (err) {
+        console.log(`${method} failed:`, err);
+      }
+    }
+  }
+  
+  // Final fallback: CSS fullscreen
+  if (isAndroid) {
+    element.classList.add('android-fallback');
+    // Try to hide browser UI
+    if (document.documentElement.requestFullscreen) {
+      try { await document.documentElement.requestFullscreen(); } catch(e) {}
+    }
   }
 }
 
 function exitFullscreen() {
-  if (document.exitFullscreen) document.exitFullscreen();
-  else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-  else if (document.msExitFullscreen) document.msExitFullscreen();
-  else if (document.mozCancelFullScreen) document.mozCancelFullScreen();
-}
-
-// ============= CONTROL PANEL MODE =============
-if (isControl) {
-  gate.style.display = "none";
-  control.style.display = "flex";
+  if (isIOS) {
+    // iOS exits when video stops or user presses Done
+    video.setAttribute('playsinline', 'false'); // Reset for next time
+    return;
+  }
   
-  status.textContent = "Waking up server...";
-  fetch(`${SERVER_URL}/`)
-    .then(res => res.json())
-    .then(data => { status.textContent = "Ready"; })
-    .catch(err => { status.textContent = "Server connection issue"; });
-
-  startBtn.addEventListener("click", async () => {
-    try {
-      status.textContent = "Starting...";
-      const response = await fetch(`${SERVER_URL}/start`, { method: "POST", headers: { "Content-Type": "application/json" }});
-      
-      if (response.ok) {
-        isPerforming = true;
-        startBtn.disabled = true;
-        pauseBtn.disabled = false;
-        stopBtn.disabled = false;
-        status.textContent = "Performance LIVE";
-        audio.play().catch(err => console.error("Audio error:", err));
-      }
-    } catch (error) {
-      status.textContent = "Error: Cannot connect";
+  // Android/Other
+  const methods = ['exitFullscreen', 'webkitExitFullscreen', 'mozCancelFullScreen', 'msExitFullscreen'];
+  for (const method of methods) {
+    if (document[method]) {
+      try { document[method](); } catch (e) {}
     }
-  });
-
-  pauseBtn.addEventListener("click", async () => {
-    const endpoint = isPaused ? 'resume' : 'pause';
-    try {
-      const response = await fetch(`${SERVER_URL}/${endpoint}`, { method: "POST", headers: { "Content-Type": "application/json" }});
-      if (response.ok) {
-        isPaused = !isPaused;
-        pauseBtn.textContent = isPaused ? "Resume" : "Pause";
-        status.textContent = isPaused ? "PAUSED" : "Performance LIVE";
-        isPaused ? audio.pause() : audio.play();
-      }
-    } catch (error) {
-      status.textContent = "Error";
-    }
-  });
-
-  stopBtn.addEventListener("click", async () => {
-    try {
-      const response = await fetch(`${SERVER_URL}/stop`, { method: "POST", headers: { "Content-Type": "application/json" }});
-      if (response.ok) {
-        isPerforming = false;
-        isPaused = false;
-        startBtn.disabled = false;
-        pauseBtn.disabled = true;
-        pauseBtn.textContent = "Pause";
-        stopBtn.disabled = true;
-        status.textContent = "Stopped";
-        audio.pause();
-        audio.currentTime = 0;
-      }
-    } catch (error) {
-      status.textContent = "Error stopping";
-    }
-  });
+  }
+  video.classList.remove('android-fallback');
 }
 
-// ============= AUDIENCE MODE =============
-else {
-  gate.style.display = "flex";
-  control.style.display = "none";
-  video.src = VIDEO_SRC;
-
-  // Initial tap to check status
-  gate.addEventListener("click", async () => {
-    gate.textContent = "Checking...";
-    gate.classList.add('waiting');
-    
-    try {
-      const response = await fetch(`${SERVER_URL}/status`);
-      const state = await response.json();
-      
-      if (state.isRunning && !state.isPaused) {
-        // PERFORMANCE ALREADY RUNNING - Show join button instead of auto-playing
-        // This preserves the user gesture for fullscreen
-        gate.style.display = "none";
-        joinBtn.style.display = "flex";
-        performanceAlreadyStarted = true;
-      } else {
-        // Normal arming flow
-        armed = true;
-        gate.textContent = "Armed. Waiting for start...";
-      }
-    } catch (error) {
-      console.error("Status check failed:", error);
-      // Assume not started, arm anyway
-      armed = true;
-      gate.textContent = "Armed. Waiting for start...";
-    }
-  });
-
-  // Late comer joins via explicit tap (preserves user gesture)
-  joinBtn.addEventListener("click", () => {
-    armed = true;
-    startVideo(); // Now this has user gesture context!
-  });
-
-  // Listen for START
-  channel.bind('START', (data) => {
-    if (armed && !performanceAlreadyStarted) {
-      // Only auto-start if we weren't a late comer
-      // Late comers already have the join button showing
-      startVideo();
-    }
-  });
-
-  channel.bind('PAUSE', (data) => { if (armed) video.pause(); });
-  
-  channel.bind('RESUME', (data) => { 
-    if (armed) {
-      video.play().catch(err => console.error("Resume error:", err));
-    }
-  });
-
-  channel.bind('STOP', (data) => {
-    stopVideo();
-    gate.style.display = "flex";
-    joinBtn.style.display = "none";
-    gate.textContent = "Performance ended. Tap to reset.";
-    gate.classList.remove('waiting');
-    armed = false;
-    performanceAlreadyStarted = false;
-  });
-}
-
-// ============= VIDEO FUNCTIONS =============
-async function startVideo() {
+function startVideo() {
   joinBtn.style.display = "none";
   gate.style.display = "none";
   video.style.display = "block";
   video.currentTime = 0;
   
-  // Request fullscreen WITH user gesture context
-  await enterFullscreen(video);
+  enterFullscreen(video);
   
-  try {
-    await video.play();
-  } catch (err) {
+  video.play().catch(err => {
     console.error("Play error:", err);
     gate.style.display = "flex";
     gate.textContent = "Tap to retry";
     exitFullscreen();
-  }
+  });
 }
 
 function stopVideo() {
@@ -320,44 +218,116 @@ function stopVideo() {
   exitFullscreen();
 }
 
-// Handle fullscreen change
-document.addEventListener('fullscreenchange', handleFullscreenChange);
-document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+// ============= CONTROL PANEL =============
+if (isControl) {
+  gate.style.display = "none";
+  control.style.display = "flex";
+  
+  status.textContent = "Waking up server...";
+  fetch(`${SERVER_URL}/`)
+    .then(() => status.textContent = "Ready")
+    .catch(() => status.textContent = "Server issue - refresh");
 
-function handleFullscreenChange() {
-  const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
-  if (!isFullscreen && armed && !video.paused) {
-    console.log("User exited fullscreen");
-  }
+  startBtn.addEventListener("click", async () => {
+    try {
+      status.textContent = "Starting...";
+      const res = await fetch(`${SERVER_URL}/start`, { method: "POST" });
+      if (res.ok) {
+        isPerforming = true;
+        startBtn.disabled = true;
+        pauseBtn.disabled = false;
+        stopBtn.disabled = false;
+        status.textContent = "Performance LIVE";
+        audio.play().catch(() => {});
+      }
+    } catch (e) {
+      status.textContent = "Connection error";
+    }
+  });
+
+  pauseBtn.addEventListener("click", async () => {
+    const endpoint = isPaused ? 'resume' : 'pause';
+    const res = await fetch(`${SERVER_URL}/${endpoint}`, { method: "POST" });
+    if (res.ok) {
+      isPaused = !isPaused;
+      pauseBtn.textContent = isPaused ? "Resume" : "Pause";
+      status.textContent = isPaused ? "PAUSED" : "LIVE";
+      isPaused ? audio.pause() : audio.play();
+    }
+  });
+
+  stopBtn.addEventListener("click", async () => {
+    const res = await fetch(`${SERVER_URL}/stop`, { method: "POST" });
+    if (res.ok) {
+      isPerforming = false;
+      isPaused = false;
+      startBtn.disabled = false;
+      pauseBtn.disabled = true;
+      stopBtn.disabled = true;
+      status.textContent = "Stopped";
+      audio.pause();
+      audio.currentTime = 0;
+    }
+  });
+}
+
+// ============= AUDIENCE MODE =============
+else {
+  video.src = VIDEO_SRC;
+
+  gate.addEventListener("click", async () => {
+    gate.classList.add('waiting');
+    gate.textContent = "Checking...";
+    
+    try {
+      const res = await fetch(`${SERVER_URL}/status`);
+      const state = await res.json();
+      
+      if (state.isRunning && !state.isPaused) {
+        gate.style.display = "none";
+        joinBtn.style.display = "flex";
+        performanceAlreadyStarted = true;
+      } else {
+        armed = true;
+        gate.textContent = "Armed. Waiting...";
+      }
+    } catch (e) {
+      armed = true;
+      gate.textContent = "Armed. Waiting...";
+    }
+  });
+
+  joinBtn.addEventListener("click", () => {
+    armed = true;
+    startVideo();
+  });
+
+  channel.bind('START', () => {
+    if (armed && !performanceAlreadyStarted) {
+      startVideo();
+    }
+  });
+
+  channel.bind('PAUSE', () => { if (armed) video.pause(); });
+  channel.bind('RESUME', () => { if (armed) video.play().catch(() => {}); });
+  channel.bind('STOP', () => {
+    stopVideo();
+    gate.style.display = "flex";
+    joinBtn.style.display = "none";
+    gate.textContent = "Ended. Tap to reset.";
+    gate.classList.remove('waiting');
+    armed = false;
+    performanceAlreadyStarted = false;
+  });
 }
 
 video.addEventListener('error', (e) => {
   console.error('Video error:', e);
-  gate.textContent = "Error loading video";
   gate.style.display = "flex";
-  exitFullscreen();
+  gate.textContent = "Error loading video";
 });
 
-audio.addEventListener('error', (e) => {
-  if (isControl) status.textContent = "Audio file not found";
-});
-
-pusher.connection.bind('connected', () => console.log('Pusher connected'));
-pusher.connection.bind('error', (err) => console.error('Pusher error:', err));
-
-// Wake lock for performance
-if ('wakeLock' in navigator && !isControl) {
-  let wakeLock = null;
-  
-  video.addEventListener('play', async () => {
-    try { wakeLock = await navigator.wakeLock.request('screen'); } 
-    catch (err) { console.log('Wake lock failed:', err); }
-  });
-  
-  video.addEventListener('pause', () => {
-    if (wakeLock) { wakeLock.release(); wakeLock = null; }
-  });
-}
+pusher.connection.bind('connected', () => console.log('Pusher OK'));
 </script>
 </body>
 </html>
