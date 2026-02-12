@@ -94,9 +94,6 @@ html, body {
   height: 100%;
   object-fit: cover;
   display: block;
-  /* Critical: prevent any native controls */
-  pointer-events: none;
-  -webkit-pointer-events: none;
 }
 /* Aggressive control hiding */
 #video::-webkit-media-controls,
@@ -116,19 +113,6 @@ html, body {
   display: none !important;
   opacity: 0 !important;
   visibility: hidden !important;
-  pointer-events: none !important;
-  z-index: -9999 !important;
-}
-/* Orientation handling */
-@media screen and (orientation: portrait) {
-  #videoContainer {
-    transform: rotate(0deg);
-  }
-}
-@media screen and (orientation: landscape) {
-  #videoContainer {
-    transform: rotate(0deg);
-  }
 }
 </style>
 </head>
@@ -180,52 +164,67 @@ const SERVER_URL = "https://light-audience-server.vercel.app";
 const pusher = new Pusher('30c6a2b5192e79fdcbdc', { cluster: 'eu' });
 const channel = pusher.subscribe('strobe_channel');
 
-// Prevent any video interaction
-video.addEventListener('click', (e) => e.preventDefault());
-video.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
-video.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
-video.addEventListener('contextmenu', (e) => e.preventDefault());
-
 function maximizeViewport() {
-  // Scroll to hide address bar
-  window.scrollTo(0, 0);
-  // Request fullscreen on document for Android
-  if (!isIOS && document.documentElement.requestFullscreen) {
-    document.documentElement.requestFullscreen().catch(() => {});
-  }
-  // iOS: try to hide toolbars
-  if (isIOS) {
-    setTimeout(() => window.scrollTo(0, 100), 100);
-    setTimeout(() => window.scrollTo(0, 0), 300);
-  }
+  window.scrollTo(0, 1);
+  setTimeout(() => window.scrollTo(0, 0), 100);
 }
 
 function startVideo() {
   joinBtn.style.display = "none";
   gate.style.display = "none";
   videoContainer.style.display = "block";
-  video.src = VIDEO_SRC;
+  
+  // Preload video if not already loaded
+  if (!video.src || !video.src.includes(VIDEO_SRC)) {
+    video.src = VIDEO_SRC;
+    video.load();
+  }
   video.currentTime = 0;
   
   maximizeViewport();
   
-  // Force play
-  const playAttempt = setInterval(() => {
-    video.play().then(() => {
-      clearInterval(playAttempt);
-    }).catch(() => {});
-  }, 100);
+  // CRITICAL: iOS requires webkitEnterFullscreen to be called directly from user gesture
+  if (isIOS && video.webkitEnterFullscreen) {
+    try {
+      video.webkitEnterFullscreen();
+    } catch (e) {
+      console.log('iOS fullscreen failed:', e);
+    }
+  }
   
-  // Hide any controls that might appear
-  video.controls = false;
+  // Android fullscreen
+  if (isAndroid) {
+    const enterFS = video.requestFullscreen || 
+                    video.webkitRequestFullscreen || 
+                    video.mozRequestFullScreen || 
+                    video.msRequestFullscreen;
+    if (enterFS) {
+      enterFS.call(video).catch(err => console.log('Fullscreen failed:', err));
+    }
+  }
+  
+  // CRITICAL: Play must be called directly in same call stack as user interaction on iOS
+  video.play().catch(err => {
+    console.error('Play failed:', err);
+    // Show retry prompt if autoplay blocked
+    gate.style.display = "flex";
+    gate.textContent = "Tap again";
+  });
 }
 
 function stopVideo() {
   video.pause();
   video.currentTime = 0;
   videoContainer.style.display = "none";
-  video.src = "";
-  if (document.exitFullscreen) document.exitFullscreen();
+  
+  // Exit fullscreen
+  if (document.exitFullscreen) {
+    document.exitFullscreen().catch(() => {});
+  } else if (document.webkitExitFullscreen) {
+    document.webkitExitFullscreen();
+  } else if (video.webkitExitFullscreen) {
+    video.webkitExitFullscreen();
+  }
 }
 
 // ============= CONTROL PANEL =============
@@ -234,14 +233,17 @@ if (isControl) {
   control.style.display = "flex";
   
   status.textContent = "Waking up server...";
-  fetch(`${SERVER_URL}/`)
+  fetch(`${SERVER_URL}/status`)
     .then(() => status.textContent = "Ready")
     .catch(() => status.textContent = "Server issue - refresh");
 
   startBtn.addEventListener("click", async () => {
     try {
       status.textContent = "Starting...";
-      const res = await fetch(`${SERVER_URL}/start`, { method: "POST" });
+      const res = await fetch(`${SERVER_URL}/start`, { 
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
       if (res.ok) {
         isPerforming = true;
         startBtn.disabled = true;
@@ -257,7 +259,10 @@ if (isControl) {
 
   pauseBtn.addEventListener("click", async () => {
     const endpoint = isPaused ? 'resume' : 'pause';
-    const res = await fetch(`${SERVER_URL}/${endpoint}`, { method: "POST" });
+    const res = await fetch(`${SERVER_URL}/${endpoint}`, { 
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    });
     if (res.ok) {
       isPaused = !isPaused;
       pauseBtn.textContent = isPaused ? "Resume" : "Pause";
@@ -267,13 +272,17 @@ if (isControl) {
   });
 
   stopBtn.addEventListener("click", async () => {
-    const res = await fetch(`${SERVER_URL}/stop`, { method: "POST" });
+    const res = await fetch(`${SERVER_URL}/stop`, { 
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    });
     if (res.ok) {
       isPerforming = false;
       isPaused = false;
       startBtn.disabled = false;
       pauseBtn.disabled = true;
       stopBtn.disabled = true;
+      pauseBtn.textContent = "Pause";
       status.textContent = "Stopped";
       audio.pause();
       audio.currentTime = 0;
@@ -285,17 +294,46 @@ if (isControl) {
 else {
   gate.addEventListener("click", async () => {
     gate.classList.add('waiting');
-    gate.textContent = "Checking...";
+    gate.textContent = "Loading...";
+    
+    // CRITICAL: Load and prepare video from user gesture
+    video.src = VIDEO_SRC;
+    video.load();
+    
+    // iOS: Try to enter fullscreen now (from user gesture)
+    if (isIOS && video.webkitEnterFullscreen) {
+      // Don't enter fullscreen yet, just prepare
+      // We'll play when START event comes
+    }
+    
+    // Android: Prepare for fullscreen
+    if (isAndroid) {
+      // Request fullscreen on the container
+      const enterFS = document.documentElement.requestFullscreen || 
+                      document.documentElement.webkitRequestFullscreen;
+      if (enterFS) {
+        enterFS.call(document.documentElement).catch(() => {});
+      }
+    }
+    
+    // Mute and play for a split second, then pause (iOS trick to enable autoplay later)
+    video.muted = true;
+    video.play().then(() => {
+      video.pause();
+      video.currentTime = 0;
+    }).catch(() => {});
     
     try {
       const res = await fetch(`${SERVER_URL}/status`);
       const state = await res.json();
       
       if (state.isRunning && !state.isPaused) {
-        gate.style.display = "none";
-        joinBtn.style.display = "flex";
+        // Performance already running - join immediately
+        armed = true;
         performanceAlreadyStarted = true;
+        startVideo();
       } else {
+        // Waiting for performance
         armed = true;
         gate.textContent = "You're about to be the light. Please wait...";
       }
@@ -305,25 +343,38 @@ else {
     }
   });
 
+  // Late comer join button
   joinBtn.addEventListener("click", () => {
     armed = true;
     startVideo();
   });
 
+  // START event from Pusher - everyone plays at same time
   channel.bind('START', () => {
     if (armed && !performanceAlreadyStarted) {
-      startVideo();
+      startVideo(); // Video is already loaded, should play smoothly
     }
   });
 
-  channel.bind('PAUSE', () => { if (armed) video.pause(); });
-  channel.bind('RESUME', () => { if (armed) video.play().catch(() => {}); });
+  channel.bind('PAUSE', () => { 
+    if (armed) video.pause(); 
+  });
+  
+  channel.bind('RESUME', () => { 
+    if (armed) video.play().catch(() => {}); 
+  });
+  
   channel.bind('STOP', () => {
     stopVideo();
     gate.style.display = "flex";
     joinBtn.style.display = "none";
     gate.textContent = "Ended. Tap to reset.";
     gate.classList.remove('waiting');
+    gate.onclick = async () => {
+      gate.textContent = "Tap to enter the trance";
+      armed = false;
+      performanceAlreadyStarted = false;
+    };
     armed = false;
     performanceAlreadyStarted = false;
   });
@@ -332,10 +383,11 @@ else {
 video.addEventListener('error', (e) => {
   console.error('Video error:', e);
   gate.style.display = "flex";
-  gate.textContent = "Error loading video";
+  gate.textContent = "Error loading video. Tap to retry.";
 });
 
-pusher.connection.bind('connected', () => console.log('Pusher OK'));
+pusher.connection.bind('connected', () => console.log('Pusher connected'));
+pusher.connection.bind('error', (err) => console.error('Pusher error:', err));
 </script>
 </body>
 </html>
