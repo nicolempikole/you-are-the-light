@@ -141,6 +141,7 @@ const isAndroid = /Android/.test(navigator.userAgent);
 
 const params = new URLSearchParams(location.search);
 const isControl = params.get("control") === "true";
+const videoColor = params.get("video") || "white"; // Default to white if no parameter
 
 const gate = document.getElementById("gate");
 const joinBtn = document.getElementById("joinBtn");
@@ -158,7 +159,11 @@ let isPerforming = false;
 let isPaused = false;
 let performanceAlreadyStarted = false;
 
-const VIDEO_SRC = "audio/PHONE_TRANCE_1.mp4";
+// Select video based on URL parameter
+const VIDEO_SRC = videoColor === "pink" 
+  ? "audio/I_TRANCE_PINK.mp4" 
+  : "audio/I_TRANCE_WHITE.mp4";
+
 const SERVER_URL = "https://light-audience-server.vercel.app";
 
 const pusher = new Pusher('30c6a2b5192e79fdcbdc', { cluster: 'eu' });
@@ -208,7 +213,7 @@ function startVideo() {
     console.error('Play failed:', err);
     // Show retry prompt if autoplay blocked
     gate.style.display = "flex";
-    gate.textContent = "Tap again";
+    gate.textContent = "Tap again to play";
   });
 }
 
